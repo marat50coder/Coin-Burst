@@ -1,0 +1,38 @@
+[package]
+name = "coinburst_gateway"
+version = "0.1.0"
+edition = "2024"
+# ─── Gray-part gateway for Coin Burst ───
+# Produces libcoinburst_gateway.so (Android ARM64 / ARMv7). Loaded from Dart
+# through dart:ffi; stores every gray-part string literal XOR-sealed in
+# .rodata so the APK contains no plaintext endpoint, upstream secret, field
+# names, or Chrome user-agent.
+
+[lib]
+name = "coinburst_gateway"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Pulled in with rustls so Android cross-compile doesn't need OpenSSL.
+ureq = { version = "2.10", default-features = false, features = ["tls", "json"] }
+rustls = { version = "0.22", default-features = false, features = ["ring"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.22"
+rand = "0.8"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+# No debug symbols in the shipped .so — a reverse-engineer has nothing to
+# attach to beyond the obfuscated function names.
+debug = false
+overflow-checks = false
+
+[build-dependencies]
+rand = "0.8"

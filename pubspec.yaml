@@ -1,0 +1,43 @@
+name: coin_burst_game
+description: "Coin Burst - casino slot game."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.10.0
+  shared_preferences: ^2.3.3
+  # Required by the gray-part gateway. Everything sensitive (install id,
+  # last known verdict URL) is persisted encrypted; keep this at >= 10.0.0
+  # so iOS gets the Keychain-backed implementation out of the box.
+  flutter_secure_storage: ^10.0.0+1
+  package_info_plus: ^8.0.2
+  device_info_plus: ^10.1.2
+  ffi: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/Coin_Burst_additional_assets/
+    - assets/Coin_Burst_gameplay_assets/
+
+flutter_launcher_icons:
+  # Only the legacy pre-API-26 mipmaps are generated here. The adaptive icon
+  # in mipmap-anydpi-v26/ic_launcher.xml is hand-written (see SkyLadder for
+  # the same pattern) so flutter_launcher_icons doesn't overwrite it on the
+  # next run.
+  android: true
+  ios: false
+  image_path: "assets/Coin_Burst_additional_assets/Icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true

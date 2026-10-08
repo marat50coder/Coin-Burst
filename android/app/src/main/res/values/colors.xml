@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backdrop behind the launcher/splash art. A deep purple-navy that
+         matches the Coin Burst in-game gradient (`#2C1458` → `#0B0F30`), so
+         the icon's bright centre pops out against a dark frame on the home
+         screen. -->
+    <color name="launch_bg">#1A0E3B</color>
+    <color name="launch_sky">#07091E</color>
+</resources>
