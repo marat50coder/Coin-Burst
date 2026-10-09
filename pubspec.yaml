@@ -1,7 +1,7 @@
 name: coin_burst_game
 description: "Coin Burst - casino slot game."
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.1+7
 
 environment:
   sdk: ^3.12.2
