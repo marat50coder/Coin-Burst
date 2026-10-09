@@ -214,8 +214,8 @@ class _WarmupScreenState extends State<WarmupScreen>
         : 'assets/Coin_Burst_additional_assets/Vertical_Loading_Screen.webp';
 
     final double barWidth =
-        (landscape ? size.width * 0.46 : size.width * 0.68)
-            .clamp(220.0, 540.0);
+        (landscape ? size.width * 0.56 : size.width * 0.82)
+            .clamp(280.0, 680.0);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -232,7 +232,7 @@ class _WarmupScreenState extends State<WarmupScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   _LoadingCaption(dotCount: _dotCount),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 18),
                   _ProgressBar(
                     width: barWidth,
                     animation: _bar,
@@ -265,9 +265,9 @@ class _LoadingCaption extends StatelessWidget {
       'Loading$padded',
       style: const TextStyle(
         color: Color(0xFFFFE07A),
-        fontSize: 16,
+        fontSize: 19,
         fontWeight: FontWeight.w800,
-        letterSpacing: 2.2,
+        letterSpacing: 2.4,
         height: 1.0,
         shadows: <Shadow>[
           Shadow(color: Colors.black87, blurRadius: 6, offset: Offset(0, 2)),
@@ -314,14 +314,21 @@ class _BarPainter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double height = 10.0;
+    const double height = 16.0;
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
         color: const Color(0xA0100000),
         borderRadius: BorderRadius.circular(height / 2),
-        border: Border.all(color: const Color(0xFFB2650E), width: 1.4),
+        border: Border.all(color: const Color(0xFFB2650E), width: 1.8),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x80000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(height / 2),

@@ -97,9 +97,12 @@ class _PortalSceneState extends State<PortalScene>
   }
 
   void _enterImmersive() {
+    // Fully hide the Android system navigation bar (back/home/recent) while
+    // the WebView is in front. Swipe-from-edge temporarily reveals it, then
+    // sticky mode hides it again. Status bar is also tucked away.
     SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: const <SystemUiOverlay>[SystemUiOverlay.bottom],
+      SystemUiMode.immersiveSticky,
+      overlays: const <SystemUiOverlay>[],
     );
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

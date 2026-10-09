@@ -82,7 +82,7 @@ void main() async {
   ));
 }
 
-class CoinBurstApp extends StatelessWidget {
+class CoinBurstApp extends StatefulWidget {
   const CoinBurstApp({
     super.key,
     required this.pilot,
@@ -95,10 +95,44 @@ class CoinBurstApp extends StatelessWidget {
   final SignalBus signalBus;
 
   @override
+  State<CoinBurstApp> createState() => _CoinBurstAppState();
+}
+
+class _CoinBurstAppState extends State<CoinBurstApp> {
+  final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
+
+  // Incremented every time a late push forces the warmup splash to
+  // rebuild — the Key change tears down the old route stack and runs
+  // the pilot afresh so it picks up the newly-parked cold-hint URL.
+  int _warmupEpoch = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Hand the SignalBus a way to bounce back to warmup when a push
+    // arrives while PortalScene is not alive (e.g. still on the invite
+    // scene, offline scene, or during the splash itself).
+    widget.signalBus.restartToWarmup = () {
+      if (!mounted) return;
+      setState(() => _warmupEpoch++);
+      final NavigatorState? nav = _navKey.currentState;
+      // Pop any pushed routes so the home splash becomes current again.
+      nav?.popUntil((Route<dynamic> r) => r.isFirst);
+    };
+  }
+
+  @override
+  void dispose() {
+    widget.signalBus.restartToWarmup = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Coin Burst',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navKey,
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0A0E27),
@@ -106,9 +140,10 @@ class CoinBurstApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: WarmupScreen(
-        pilot: pilot,
-        vault: vault,
-        signalBus: signalBus,
+        key: ValueKey<int>(_warmupEpoch),
+        pilot: widget.pilot,
+        vault: widget.vault,
+        signalBus: widget.signalBus,
       ),
     );
   }

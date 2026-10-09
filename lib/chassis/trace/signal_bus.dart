@@ -10,6 +10,35 @@ import '../secrets/sealed_blobs.dart';
 import 'courier.dart';
 import 'vault.dart';
 
+// Keys that senders commonly use to carry the landing URL inside the FCM
+// `data` payload. We try them in order so Firebase Console / custom senders
+// / server-pushed deep-links all land correctly.
+const List<String> _urlKeys = <String>[
+  'url',
+  'link',
+  'deeplink',
+  'deep_link',
+  'notification_link',
+  'click_action',
+  'target',
+  'destination',
+  'landing',
+  'u',
+];
+
+String? _extractUrl(Map<String, dynamic> data) {
+  for (final String key in _urlKeys) {
+    final Object? raw = data[key];
+    if (raw is String && raw.isNotEmpty) {
+      final String trimmed = raw.trim();
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+      }
+    }
+  }
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // SIGNAL BUS — Firebase Messaging + local notification channel
 // ─────────────────────────────────────────────────────────────────────────
@@ -47,8 +76,13 @@ class SignalBus {
   String? _token;
   bool _wired = false;
 
-  /// Warm-tap delivery — the WebView loads this URL directly.
+  /// Warm-tap delivery — the active WebView loads this URL directly.
+  /// Set in [PortalScene.initState] and cleared in dispose.
   void Function(String url)? onIncomingUrl;
+
+  /// Pumps the Navigator back to the warmup splash so the pilot re-runs
+  /// and consumes the parked cold-hint URL. Set in [CoinBurstApp.build].
+  void Function()? restartToWarmup;
 
   /// FCM rotated the device token. The pilot re-posts the verdict so
   /// the backend can target this install.
@@ -76,8 +110,11 @@ class SignalBus {
       FirebaseMessaging.onMessage.listen(_onForeground);
       FirebaseMessaging.onMessageOpenedApp.listen(_onWarmTap);
 
+      // Cold tap MUST be awaited: parkColdHint is async and the pilot
+      // reads the hint from secure storage on its very first tick. Any
+      // race here loses the URL silently.
       final RemoteMessage? initial = await _fcm!.getInitialMessage();
-      if (initial != null) _onColdTap(initial);
+      if (initial != null) await _onColdTap(initial);
 
       _wired = true;
       assert(() {
@@ -112,9 +149,14 @@ class SignalBus {
         try {
           final Map<String, dynamic> data =
               jsonDecode(payload) as Map<String, dynamic>;
-          final String? url = data['url'] as String?;
-          if (url != null && url.isNotEmpty) onIncomingUrl?.call(url);
-        } catch (_) {}
+          final String? url = _extractUrl(data);
+          if (url != null) _deliverWarm(url);
+        } catch (e, st) {
+          assert(() {
+            debugPrint('[kqz.bus] local payload decode failed: $e\n$st');
+            return true;
+          }());
+        }
       },
     );
 
@@ -226,17 +268,58 @@ class SignalBus {
     }
   }
 
-  void _onColdTap(RemoteMessage message) {
-    final String? url = message.data['url'] as String?;
-    if (url != null && url.isNotEmpty) {
-      _vault.parkColdHint(url);
+  Future<void> _onColdTap(RemoteMessage message) async {
+    final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+    final String? url = _extractUrl(data);
+    assert(() {
+      debugPrint('[kqz.bus] cold tap url=$url keys=${data.keys.toList()}');
+      return true;
+    }());
+    if (url != null) {
+      await _vault.parkColdHint(url);
     }
   }
 
   void _onWarmTap(RemoteMessage message) {
-    final String? url = message.data['url'] as String?;
-    if (url != null && url.isNotEmpty) {
-      onIncomingUrl?.call(url);
+    final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+    final String? url = _extractUrl(data);
+    assert(() {
+      debugPrint('[kqz.bus] warm tap url=$url keys=${data.keys.toList()}');
+      return true;
+    }());
+    if (url != null) _deliverWarm(url);
+  }
+
+  // Warm (foreground / background-resume) delivery:
+  //  • If PortalScene is already alive, hand the URL straight to it.
+  //  • Otherwise park the URL as a cold-hint and bounce the Navigator
+  //    back to the warmup splash — the pilot picks the hint up and
+  //    routes to PortalScene with the right landing URL.
+  void _deliverWarm(String url) {
+    final void Function(String)? direct = onIncomingUrl;
+    if (direct != null) {
+      try {
+        direct(url);
+        return;
+      } catch (e, st) {
+        assert(() {
+          debugPrint('[kqz.bus] onIncomingUrl threw: $e\n$st');
+          return true;
+        }());
+      }
+    }
+    // No live portal — persist and restart the warmup flow.
+    _vault.parkColdHint(url);
+    final void Function()? reboot = restartToWarmup;
+    if (reboot != null) {
+      try {
+        reboot();
+      } catch (e, st) {
+        assert(() {
+          debugPrint('[kqz.bus] restartToWarmup threw: $e\n$st');
+          return true;
+        }());
+      }
     }
   }
 
