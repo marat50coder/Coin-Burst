@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
+
 import 'core/outcome.dart';
 import 'secrets/routing_card.dart';
 import 'trace/attribution_feed.dart';
@@ -20,14 +22,26 @@ import 'trace/verdict_dispatcher.dart';
 //   • `OutsideOutcome`  — show the WebView at the given URL
 //   • `StallOutcome`    — show the no-connection screen
 //
-// Fast-paths:
+// Fast-paths (checked in order):
 //   1. Cold-boot push with URL     → OutsideOutcome(coldTap: true)
-//   2. Cached verdict URL (fresh)  → OutsideOutcome(cached)
-//   3. attribution key not packed  → SlotOutcome
-//   4. no reachable network        → StallOutcome
+//   2. attribution key not packed  → SlotOutcome
+//   3. no reachable network        → StallOutcome
 //
-// Fallback: dispatch the verdict with the attribution + install
-// payload and route on the response.
+// Normal path:
+//   • Wake AppsFlyer early (before the reach-check), poll for signals,
+//     dispatch the verdict synchronously on EVERY launch — never
+//     return a stale cached URL while the operator has already rotated
+//     the config. That stale-cache fast-path was the #1 complaint on
+//     sibling projects: admin flips the URL in the dashboard, the user
+//     relaunches, and still lands on the old destination because the
+//     client short-circuited to its own cache before asking the server.
+//
+// Cache is now a FALLBACK only:
+//   • Verdict transport failure (timeout / malformed / disarmed) and a
+//     fresh cached URL exists → OutsideOutcome(cached). Protects users
+//     from a temporary backend outage.
+//   • Verdict returns ok=false (admin takedown) → cache is NOT reused;
+//     we honour the server and route to the slot game.
 //
 // A single in-flight future is memoised so retries cannot stack
 // multiple pipelines in parallel.
@@ -91,53 +105,73 @@ class RoutePilot {
       return StallOutcome(returnsToSlot: returnsToSlot);
     }
 
-    // 4. Returning user with a fresh cache → skip the full dispatch.
-    if (_vault.track == TrackMemory.outside && !_vault.cachedUrlExpired) {
-      final String? cached = await _vault.cachedUrl();
-      if (cached != null && cached.isNotEmpty) {
-        unawaited(_backgroundRefresh());
-        return OutsideOutcome(cached);
-      }
-    }
-
-    // 5. Make sure AppsFlyer is up (idempotent — no-op if 2.5 already
+    // 4. Make sure AppsFlyer is up (idempotent — no-op if 2.5 already
     //    ran it) and poll for the install/deep-link payload.
+    //    The wait budget is longer on the very first run (so the Play
+    //    Install Referrer has time to resolve into attribution data)
+    //    and tight on returning runs so a re-launch feels snappy.
     await _attribution.start();
     final int wait = _vault.track == TrackMemory.initial
         ? RoutingCard.firstInstallAwaitSeconds
         : RoutingCard.returningInstallAwaitSeconds;
     await _attribution.awaitSignals(installSeconds: wait);
 
-    // 6. Build body + call the Rust bridge.
+    // 5. Build body + call the Rust bridge. Even on an organic install
+    //    (no OneLink click, af_status=Organic, empty clickEvent) the
+    //    body is dispatched intact so the operator can serve a URL
+    //    for organic installs via config — no client-side bypass.
     final Map<String, dynamic> body = await _composeBody();
+    assert(() {
+      final String? status = body['af_status']?.toString();
+      debugPrint('[kqz.pilot] dispatching verdict '
+          'track=${_vault.track.wireValue} af_status=$status '
+          'body_keys=${body.keys.toList()}');
+      return true;
+    }());
+
     final VerdictAnswer answer = await _dispatcher
         .request(body)
         .timeout(Duration(seconds: RoutingCard.verdictTimeoutSeconds),
             onTimeout: () => VerdictAnswer.rejected('timeout'));
 
     if (answer.hasDestination) {
+      // Dispatcher has already written the fresh URL into the vault
+      // cache; stamp the track so returning cold-boot heuristics are
+      // consistent.
       await _vault.stampTrack(TrackMemory.outside);
+      assert(() {
+        debugPrint('[kqz.pilot] fresh verdict url -> ${answer.url}');
+        return true;
+      }());
       return OutsideOutcome(answer.url!);
     }
 
+    // Verdict path 1: TRANSPORT FAILURE (timeout / malformed / disarmed
+    // bridge). Fall back to a fresh cached URL if we have one — a
+    // transient backend blip must not demote a working user to the
+    // slot game. `failureNote != null` is set by the dispatcher only
+    // on transport errors, never on an authoritative server "deny".
+    final bool transportFailed = answer.failureNote != null;
+    if (transportFailed &&
+        _vault.track == TrackMemory.outside &&
+        !_vault.cachedUrlExpired) {
+      final String? cached = await _vault.cachedUrl();
+      if (cached != null && cached.isNotEmpty) {
+        assert(() {
+          debugPrint('[kqz.pilot] verdict ${answer.failureNote}; '
+              'serving cached url');
+          return true;
+        }());
+        return OutsideOutcome(cached);
+      }
+    }
+
+    // Verdict path 2: AUTHORITATIVE DENY (ok=false, no transport
+    // error). Operator pulled the gray branch — honour it, clear the
+    // outside track memory so cached URLs cannot resurrect it on a
+    // later transport error.
     await _vault.stampTrack(TrackMemory.slot);
     return const SlotOutcome();
-  }
-
-  Future<void> _backgroundRefresh() async {
-    try {
-      await _attribution.start();
-      await _attribution.awaitSignals(
-        installSeconds: RoutingCard.returningInstallAwaitSeconds,
-      );
-      final Map<String, dynamic> body = await _composeBody();
-      final VerdictAnswer answer = await _dispatcher.request(body);
-      if (answer.hasDestination) {
-        await _vault.stampTrack(TrackMemory.outside);
-      }
-    } catch (_) {
-      // Best-effort refresh.
-    }
   }
 
   Future<Map<String, dynamic>> _composeBody() async {
