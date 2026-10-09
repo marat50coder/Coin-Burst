@@ -10,13 +10,19 @@ import 'portal_scene.dart';
 // ─────────────────────────────────────────────────────────────────────────
 // INVITE SCENE — one-shot push opt-in before the portal loads
 // ─────────────────────────────────────────────────────────────────────────
-// Only shown when `vault.shouldShowInvite` is true — first launch, or
-// after the snooze window expired. Accept triggers the OS prompt;
-// either tap forwards to the portal.
+// Shown when `vault.shouldShowInvite` is true — first launch, or after
+// the snooze window expired. Accept triggers the OS prompt; either tap
+// forwards to the portal.
 //
-// Button design follows the slot theme (gold big action, dark gold-
-// outlined secondary) via `burst_button.dart` — not the template's
-// sky-blue pill.
+// Layout:
+//   • No overlay copy — the artwork already carries the headline / sub.
+//   • Portrait: Accept + Skip stacked vertically.
+//   • Landscape: Accept + Skip side-by-side on a single row, each pill
+//                is half-width (2× narrower than the single-column
+//                variant used in portrait). Aligned on the SAME Y so a
+//                single visual baseline — the Skip label row — carries
+//                both actions.
+//   • Everything lives above the system nav bar via `SafeArea`.
 // ─────────────────────────────────────────────────────────────────────────
 
 class InviteScene extends StatefulWidget {
@@ -88,100 +94,77 @@ class _InviteSceneState extends State<InviteScene> {
             width: size.width,
             height: size.height,
           ),
-          // Darken the lower third so the copy and buttons sit on a
-          // readable backdrop regardless of the artwork.
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.center,
-                end: Alignment.bottomCenter,
-                colors: <Color>[Colors.transparent, Color(0xCC000000)],
-              ),
-            ),
-          ),
           SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: size.width * (landscape ? 0.14 : 0.08),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: <Widget>[
-                  _InviteCopy(landscape: landscape),
-                  SizedBox(height: landscape ? 14 : 22),
-                  BurstBigButton(
-                    label: unlockInviteAccept(),
-                    width:
-                        landscape ? size.width * 0.42 : size.width * 0.78,
-                    compact: landscape,
-                    onTap: _accept,
-                  ),
-                  SizedBox(height: landscape ? 10 : 14),
-                  BurstGhostButton(
-                    label: unlockInviteSkip(),
-                    width:
-                        landscape ? size.width * 0.42 : size.width * 0.78,
-                    compact: landscape,
-                    onTap: _skip,
-                  ),
-                  SizedBox(height: size.height * (landscape ? 0.08 : 0.07)),
-                ],
-              ),
-            ),
+            child: landscape
+                ? _buildLandscape(size)
+                : _buildPortrait(size),
           ),
         ],
       ),
     );
   }
-}
 
-class _InviteCopy extends StatelessWidget {
-  const _InviteCopy({required this.landscape});
+  // ── Portrait ────────────────────────────────────────────────────
+  // Stacked column pinned near the bottom. No overlay copy.
+  Widget _buildPortrait(Size size) {
+    final double buttonWidth = size.width * 0.78;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: size.width * 0.08),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: <Widget>[
+          BurstBigButton(
+            label: unlockInviteAccept(),
+            width: buttonWidth,
+            onTap: _accept,
+          ),
+          const SizedBox(height: 14),
+          BurstGhostButton(
+            label: unlockInviteSkip(),
+            width: buttonWidth,
+            onTap: _skip,
+          ),
+          SizedBox(height: size.height * 0.07),
+        ],
+      ),
+    );
+  }
 
-  final bool landscape;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          unlockInviteTitle(),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: const Color(0xFFFFE07A),
-            fontSize: landscape ? 22 : 28,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.4,
-            height: 1.0,
-            shadows: const <Shadow>[
-              Shadow(
-                color: Colors.black87,
-                blurRadius: 6,
-                offset: Offset(0, 2),
+  // ── Landscape ───────────────────────────────────────────────────
+  // Accept + Skip side-by-side on one row, each 2× narrower than the
+  // portrait variant. Positioned so the Skip pill is roughly where the
+  // artwork expects the primary action row.
+  Widget _buildLandscape(Size size) {
+    // Portrait pill width is `size.width * 0.42`. Half of that keeps
+    // visual balance when both buttons live on a single row.
+    final double buttonWidth = size.width * 0.21;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: size.width * 0.1),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: <Widget>[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              BurstBigButton(
+                label: unlockInviteAccept(),
+                width: buttonWidth,
+                compact: true,
+                onTap: _accept,
+              ),
+              const SizedBox(width: 18),
+              BurstGhostButton(
+                label: unlockInviteSkip(),
+                width: buttonWidth,
+                compact: true,
+                onTap: _skip,
               ),
             ],
           ),
-        ),
-        SizedBox(height: landscape ? 6 : 10),
-        Text(
-          unlockInviteBody(),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: const Color(0xFFEADFC9),
-            fontSize: landscape ? 14 : 16,
-            fontWeight: FontWeight.w500,
-            height: 1.3,
-            shadows: const <Shadow>[
-              Shadow(
-                color: Colors.black87,
-                blurRadius: 4,
-                offset: Offset(0, 1),
-              ),
-            ],
-          ),
-        ),
-      ],
+          SizedBox(height: size.height * 0.1),
+        ],
+      ),
     );
   }
 }

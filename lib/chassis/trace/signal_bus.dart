@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../secrets/sealed_blobs.dart';
@@ -25,7 +25,11 @@ import 'vault.dart';
 
 const String kBusChannelId = 'cb_updates_v1';
 const String kBusChannelName = 'Spin updates';
-const String _smallIcon = '@drawable/ic_notification';
+// flutter_local_notifications resolves `icon` via
+// `Resources#getIdentifier(name, "drawable", pkg)` — pass the resource
+// name only, NEVER the `@drawable/…` XML reference form, otherwise the
+// lookup silently returns 0 and the notification is dropped.
+const String _smallIcon = 'ic_notification';
 
 @pragma('vm:entry-point')
 Future<void> _backgroundSink(RemoteMessage message) async {
@@ -76,8 +80,17 @@ class SignalBus {
       if (initial != null) _onColdTap(initial);
 
       _wired = true;
-    } catch (_) {
-      // Firebase not configured yet — push stays dormant.
+      assert(() {
+        debugPrint('[kqz.bus] wired. token=${_token?.substring(0, 16)}…');
+        return true;
+      }());
+    } catch (e, st) {
+      // Firebase not configured yet — push stays dormant. Log in debug
+      // so the operator can tell "no credentials" from "runtime panic".
+      assert(() {
+        debugPrint('[kqz.bus] wireUp failed: $e\n$st');
+        return true;
+      }());
     }
   }
 
@@ -114,7 +127,13 @@ class SignalBus {
           kBusChannelId,
           kBusChannelName,
           description: unlockBusChannelDesc(),
-          importance: Importance.high,
+          // `max` + `playSound:true` + `enableVibration:true` is the only
+          // combo that reliably heads-up on Android 12+. `high` degrades
+          // to in-tray on some OEM skins (Xiaomi / Realme).
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
         ),
       );
     }
@@ -140,20 +159,35 @@ class SignalBus {
   }
 
   void _onForeground(RemoteMessage message) async {
+    if (!Platform.isAndroid) return;
+
+    // Resolve title/body from either the `notification` block or the
+    // `data` map — Firebase Console pushes always carry `notification`,
+    // but custom senders sometimes ship data-only payloads to bypass
+    // the system auto-display path.
     final RemoteNotification? n = message.notification;
-    if (n == null || !Platform.isAndroid) return;
+    final Map<String, dynamic> data = Map<String, dynamic>.from(message.data);
+    final String? title = n?.title ?? data['title'] as String?;
+    final String? body = n?.body ?? data['body'] as String?;
+    if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
+      // Nothing to render — do not fabricate a blank notification.
+      return;
+    }
 
     AndroidNotificationDetails? details;
-    final String? imageUrl = n.android?.imageUrl;
+    final String? imageUrl =
+        n?.android?.imageUrl ?? data['image'] as String?;
     if (imageUrl != null && imageUrl.isNotEmpty) {
       final Uint8List? bytes = await _grabImage(imageUrl);
       if (bytes != null) {
         details = AndroidNotificationDetails(
           kBusChannelId,
           kBusChannelName,
-          importance: Importance.high,
-          priority: Priority.high,
+          importance: Importance.max,
+          priority: Priority.max,
           icon: _smallIcon,
+          playSound: true,
+          enableVibration: true,
           styleInformation: BigPictureStyleInformation(
             ByteArrayAndroidBitmap(bytes),
             largeIcon:
@@ -166,18 +200,30 @@ class SignalBus {
     details ??= const AndroidNotificationDetails(
       kBusChannelId,
       kBusChannelName,
-      importance: Importance.high,
-      priority: Priority.high,
+      importance: Importance.max,
+      priority: Priority.max,
       icon: _smallIcon,
+      playSound: true,
+      enableVibration: true,
     );
 
-    await _local.show(
-      n.hashCode,
-      n.title,
-      n.body,
-      NotificationDetails(android: details),
-      payload: message.data.isNotEmpty ? jsonEncode(message.data) : null,
-    );
+    final int tag = (message.messageId ?? message.hashCode.toString()).hashCode;
+    try {
+      await _local.show(
+        tag,
+        title,
+        body,
+        NotificationDetails(android: details),
+        payload: data.isNotEmpty ? jsonEncode(data) : null,
+      );
+    } catch (e, st) {
+      // Make the delivery failure LOUD in debug — silent catch masked
+      // the icon-reference bug for weeks.
+      assert(() {
+        debugPrint('[kqz.bus] show failed: $e\n$st');
+        return true;
+      }());
+    }
   }
 
   void _onColdTap(RemoteMessage message) {

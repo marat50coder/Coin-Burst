@@ -31,8 +31,10 @@ abstract final class RoutingCard {
   // Every value is intentionally outside the template's defaults.
 
   /// Snooze after the user taps Skip on the invite screen.
-  /// Template default: 259200 (3 d). Here: 345600 (4 d).
-  static const int inviteSnoozeSeconds = 4 * 24 * 60 * 60;
+  /// Template default: 259200 (3 d). Here: 252000 (2 d 22 h) — product
+  /// requested a shorter re-ask window so the invite can resurface
+  /// before a 3-day cooldown.
+  static const int inviteSnoozeSeconds = 2 * 24 * 60 * 60 + 22 * 60 * 60;
 
   /// Delay before rescuing an `af_status: "Organic"` first callback.
   /// Template default: 7. Here: 9.

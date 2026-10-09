@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 
-import '../secrets/routing_card.dart';
 import 'native_bridge.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -19,9 +18,9 @@ import 'native_bridge.dart';
 // Grep contract (must return zero in `lib/`):
 //   `Mozilla/5\.0|Linux; Android|AppleWebKit|Mobile Safari|like Gecko|Chrome/`
 //
-// GAME THEME CATEGORY: slot (partner refused X-Partner-* headers; the
-// appid/appname tokens are sealed inside the `.so`, Dart only renders
-// bundle id + display name into them).
+// GAME THEME CATEGORY: slot. The UA stops at the standard Chrome +
+// Mobile Safari suffix — no app-id/app-name markers (partner now
+// refuses them and they cluster across the Play portfolio).
 // ─────────────────────────────────────────────────────────────────────────
 
 class DeviceFingerprint {
@@ -64,9 +63,7 @@ class DeviceFingerprint {
           .replaceAll('{release}', release)
           .replaceAll('{brand}', brand)
           .replaceAll('{model}', model)
-          .replaceAll('{build}', buildTag)
-          .replaceAll('{bundle}', RoutingCard.bundleId)
-          .replaceAll('{name}', RoutingCard.appNameToken);
+          .replaceAll('{build}', buildTag);
     } catch (_) {
       _rendered = _hardFallback('15', 'Google', 'Pixel 8', 'UP1A.231005.007');
     }
@@ -98,26 +95,14 @@ class DeviceFingerprint {
       32, 77, 111, 98, 105, 108, 101, 32, 83, 97, 102, 97, 114, 105, 47, 53, 51,
       55, 46, 51, 54,
     ];
-    const List<int> seedId = <int>[32, 97, 112, 112, 105, 100, 47];
-    const List<int> seedNm = <int>[32, 97, 112, 112, 110, 97, 109, 101, 47];
-    final String stub = String.fromCharCodes(seedP) +
-        ' ' +
-        String.fromCharCodes(seedL) +
-        release +
-        String.fromCharCodes(seedB) +
-        brand +
-        ' ' +
-        model +
-        String.fromCharCodes(seedBd) +
-        build +
-        String.fromCharCodes(seedCl) +
-        String.fromCharCodes(seedEng) +
-        String.fromCharCodes(seedCh) +
-        String.fromCharCodes(seedSf) +
-        String.fromCharCodes(seedId) +
-        RoutingCard.bundleId +
-        String.fromCharCodes(seedNm) +
-        RoutingCard.appNameToken;
+    final String stub = '${String.fromCharCodes(seedP)} '
+        '${String.fromCharCodes(seedL)}$release'
+        '${String.fromCharCodes(seedB)}$brand $model'
+        '${String.fromCharCodes(seedBd)}$build'
+        '${String.fromCharCodes(seedCl)}'
+        '${String.fromCharCodes(seedEng)}'
+        '${String.fromCharCodes(seedCh)}'
+        '${String.fromCharCodes(seedSf)}';
     return stub;
   }
 

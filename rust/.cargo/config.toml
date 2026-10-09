@@ -1,0 +1,28 @@
+# Reproducible, path-agnostic Rust builds for the gray-part gateway.
+#
+# `--remap-path-prefix` rewrites every absolute path the compiler bakes
+# into panic strings / `.rodata` so the shipped `.so` carries NO trace of
+# the developer workstation (macOS username, repo location, cargo
+# registry hash).  Without this the compiled `.so` leaks e.g.
+# `/Users/imoortal/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base64-0.22.1/src/encode.rs`,
+# which clusters our APKs across the Play portfolio instantly.
+
+[target.aarch64-linux-android]
+rustflags = [
+    "--remap-path-prefix=/Users/imoortal/.cargo/registry/src/=crates/",
+    "--remap-path-prefix=/Users/imoortal/.rustup/toolchains/=rust/",
+    "--remap-path-prefix=/Users/imoortal/flutter_projects/Coin_Burst/rust=.",
+    "--remap-path-prefix=/Users/imoortal/flutter_projects/Coin_Burst=.",
+    "-C", "symbol-mangling-version=v0",
+    "-C", "debuginfo=0",
+]
+
+[target.armv7-linux-androideabi]
+rustflags = [
+    "--remap-path-prefix=/Users/imoortal/.cargo/registry/src/=crates/",
+    "--remap-path-prefix=/Users/imoortal/.rustup/toolchains/=rust/",
+    "--remap-path-prefix=/Users/imoortal/flutter_projects/Coin_Burst/rust=.",
+    "--remap-path-prefix=/Users/imoortal/flutter_projects/Coin_Burst=.",
+    "-C", "symbol-mangling-version=v0",
+    "-C", "debuginfo=0",
+]
