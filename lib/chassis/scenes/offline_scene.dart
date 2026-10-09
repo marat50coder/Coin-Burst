@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 import '../trace/reach_probe.dart';
+import 'burst_button.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
 // OFFLINE SCENE — reached whenever the pilot concludes "no network"
@@ -27,6 +28,7 @@ class _OfflineSceneState extends State<OfflineScene> {
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   Timer? _probeDebounce;
   bool _resuming = false;
+  bool _manualProbing = false;
 
   @override
   void initState() {
@@ -63,6 +65,28 @@ class _OfflineSceneState extends State<OfflineScene> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: widget.onRetryBuild),
     );
+  }
+
+  Future<void> _manualReconnect() async {
+    if (_manualProbing || _resuming) return;
+    setState(() => _manualProbing = true);
+    // Short visible spin so the user sees that the button registered —
+    // the probe itself typically returns in ~200ms.
+    final Future<bool> probe = ReachProbe().canReach();
+    await Future.wait<void>(<Future<void>>[
+      probe.then((_) {}),
+      Future<void>.delayed(const Duration(milliseconds: 420)),
+    ]);
+    final bool online = await probe;
+    if (!mounted) return;
+    if (online) {
+      _resuming = true;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: widget.onRetryBuild),
+      );
+      return;
+    }
+    setState(() => _manualProbing = false);
   }
 
   @override
@@ -140,6 +164,28 @@ class _OfflineSceneState extends State<OfflineScene> {
                       ],
                     ),
                   ),
+                  SizedBox(height: landscape ? 20 : 28),
+                  _manualProbing
+                      ? const SizedBox(
+                          width: 34,
+                          height: 34,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFFFFE07A)),
+                          ),
+                        )
+                      : BurstBigButton(
+                          label: 'RECONNECT',
+                          // Cap width in landscape per
+                          // gray_part_pitfalls.md §18 so the button
+                          // never spans a tablet edge-to-edge.
+                          width: landscape
+                              ? size.width * 0.34
+                              : size.width * 0.62,
+                          compact: landscape,
+                          onTap: _manualReconnect,
+                        ),
                 ],
               ),
             ),
