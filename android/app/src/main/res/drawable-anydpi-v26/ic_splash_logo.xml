@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Keep this in sync with drawable-anydpi-v26/ic_splash_logo.xml: the
-     Android 12+ splash reuses the same adaptive icon so the launcher and the
-     splash render identically. -->
+<!--
+    Android 12+ splash foreground — kept byte-for-byte identical with
+    mipmap-anydpi-v26/ic_launcher.xml so the system splash shows the
+    SAME artwork the launcher renders.  Changing either one without the
+    other causes a visible icon pop between the splash and the launch
+    screen on cold start.
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/launch_bg" />
     <foreground>

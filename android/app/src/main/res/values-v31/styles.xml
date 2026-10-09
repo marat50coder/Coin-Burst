@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ system splash. Replaces the legacy `windowBackground`
+    strategy with the SplashScreen API. The background and the
+    animated icon are deliberately set to the SAME adaptive-icon the
+    launcher uses — see mipmap-anydpi-v26/ic_launcher.xml and
+    drawable-anydpi-v26/ic_splash_logo.xml.
+-->
+<resources>
+    <style name="LaunchTheme" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/launch_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/NormalTheme</item>
+    </style>
+
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

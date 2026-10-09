@@ -1,7 +1,6 @@
-// Envelope packer — mirrors the FastAPI relay in `scripts/relay_service.py`.
-// Keeps every piece of the ciphered contract (field names, schema rev, HMAC
-// secret) inside this .so so an APK extracted with apktool shows nothing
-// that looks like a wire format or key.
+// Envelope packer — mirrors the FastAPI relay in scripts/relay_service.py.
+// The field names, HMAC secret, and schema revision all live sealed in
+// src/sealed.rs so an apktool dump shows nothing wire-shaped.
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, Mac};
@@ -27,9 +26,8 @@ fn keystream(secret: &[u8], nonce: &[u8], len: usize) -> Vec<u8> {
     out
 }
 
-/// Pack `body_json` (already a compact JSON string) into the on-wire
-/// envelope: `{ FIELD_SCHEMA: rev, FIELD_NONCE: hex, FIELD_PAYLOAD: b64url,
-/// FIELD_TAG: hmac_hex[:16] }`.
+/// Pack `body_json` into the on-wire envelope. Field names (`h/j/l/x`),
+/// schema rev, and HMAC secret all unseal at call time.
 pub(crate) fn pack_envelope(body_json: &str) -> String {
     let secret = sealed::upstream_secret();
     let mut nonce = [0u8; 16];

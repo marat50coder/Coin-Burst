@@ -1,6 +1,8 @@
 // End-to-end gateway call: body JSON → envelope → HTTPS POST → verdict.
-// All of the network I/O happens inside the .so so the endpoint URL and
-// the User-Agent used for the call never materialise in Dart memory.
+// All I/O happens inside the `.so` so the endpoint URL never materialises
+// in Dart memory. The User-Agent arrives from Dart (built from
+// device_info_plus data) so the fingerprint matches what the WebView will
+// install.
 
 use std::time::Duration;
 
@@ -13,20 +15,14 @@ pub(crate) struct Verdict {
     pub status: u16,
 }
 
-/// Pack the clean body, POST to the sealed endpoint, parse the config
-/// answer. Returns a verdict that is safe for the Flutter side to see
-/// (just a boolean + a URL to open, no secrets).
-pub(crate) fn decide(body_json: &str) -> Verdict {
+pub(crate) fn decide(body_json: &str, user_agent: &str) -> Verdict {
     let envelope = veil::pack_envelope(body_json);
     let endpoint = sealed::endpoint();
-    let ua = sealed::webview_ua();
 
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(8))
-        .timeout(Duration::from_secs(20))
-        // Do NOT forward X-Forwarded-For; the upstream config.php 404s
-        // "No data" if any proxy header leaks through.
-        .user_agent(&ua)
+        .timeout(Duration::from_secs(21))
+        .user_agent(user_agent)
         .build();
 
     let resp = agent
@@ -41,7 +37,6 @@ pub(crate) fn decide(body_json: &str) -> Verdict {
         Err(_) => (0, String::new()),
     };
 
-    // Successful config answer looks like `{"ok":true,"url":"…"}`.
     if status == 200 {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
             let ok = v.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);

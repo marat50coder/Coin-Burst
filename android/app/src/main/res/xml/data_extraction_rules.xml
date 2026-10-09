@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ Backup / Device Transfer rules. We opt OUT of
+    cloud-backup (persisted secrets like the install token should not
+    leave the device), and keep device-to-device transfer disabled by
+    default so a cold restore does not inherit a verdict cache from a
+    different physical device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" />
+        <exclude domain="database" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" />
+        <exclude domain="database" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

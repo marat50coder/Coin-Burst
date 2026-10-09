@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    gray_part_pitfalls §17 — partners routinely send push URLs over
+    HTTP. Blocking cleartext breaks taps silently with
+    ERR_CLEARTEXT_NOT_PERMITTED. Keep the global permit on; the WebView
+    then behaves like Chrome.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

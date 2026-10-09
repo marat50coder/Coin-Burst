@@ -1,7 +1,7 @@
 name: coin_burst_game
 description: "Coin Burst - casino slot game."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.12.2
@@ -9,15 +9,38 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  webview_flutter: ^4.10.0
-  shared_preferences: ^2.3.3
+
+  # ── WebView + system wiring ───────────────────────────────────────
+  # Pins are inside the floors declared in gray_part_pitfalls §19 and
+  # intentionally offset from the sibling template so no two shipped
+  # apps resolve the exact same transitive AAR versions.
+  webview_flutter: ^4.13.0
+  webview_flutter_android: ^4.12.0
+  url_launcher: ^6.3.1
+
+  # ── Storage ───────────────────────────────────────────────────────
+  shared_preferences: ^2.5.3
   # Required by the gray-part gateway. Everything sensitive (install id,
-  # last known verdict URL) is persisted encrypted; keep this at >= 10.0.0
-  # so iOS gets the Keychain-backed implementation out of the box.
-  flutter_secure_storage: ^10.0.0+1
-  package_info_plus: ^8.0.2
-  device_info_plus: ^10.1.2
-  ffi: ^2.1.0
+  # last known verdict URL, cold-boot push url) is persisted encrypted.
+  flutter_secure_storage: ^10.2.0
+
+  # ── Platform introspection ────────────────────────────────────────
+  package_info_plus: ^8.3.0
+  device_info_plus: 11.5.0
+  connectivity_plus: ^7.0.0
+
+  # ── Transport + FFI ───────────────────────────────────────────────
+  http: ^1.5.0
+  ffi: ^2.1.3
+
+  # ── Attribution + messaging (floors in gray_part_pitfalls §19) ────
+  # Credentials live in RoutingCard; empty values keep every install on
+  # the native slot branch (gray branch stays dormant).
+  appsflyer_sdk: ^6.17.0
+  firebase_core: ^4.9.0
+  firebase_messaging: ^16.2.0
+  firebase_app_check: ^0.4.2
+  flutter_local_notifications: ^19.4.0
 
 dev_dependencies:
   flutter_test:
@@ -32,10 +55,10 @@ flutter:
     - assets/Coin_Burst_gameplay_assets/
 
 flutter_launcher_icons:
-  # Only the legacy pre-API-26 mipmaps are generated here. The adaptive icon
-  # in mipmap-anydpi-v26/ic_launcher.xml is hand-written (see SkyLadder for
-  # the same pattern) so flutter_launcher_icons doesn't overwrite it on the
-  # next run.
+  # Only the legacy pre-API-26 mipmaps are generated here. The adaptive
+  # icon in mipmap-anydpi-v26/ic_launcher.xml and the splash foreground
+  # in drawable-anydpi-v26/ic_splash_logo.xml are hand-written so
+  # flutter_launcher_icons never overwrites them.
   android: true
   ios: false
   image_path: "assets/Coin_Burst_additional_assets/Icon.png"
