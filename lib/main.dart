@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,6 +61,13 @@ void main() async {
   await signalBus.wireUp();
 
   final AttributionFeed attribution = AttributionFeed();
+  // Fire-and-forget: register the AppsFlyer callbacks + queue initSdk
+  // BEFORE the warmup screen even draws, so the Play Install Referrer
+  // broadcast is caught on the first app open. Users that click a
+  // OneLink, lose the network, and launch offline would otherwise lose
+  // the deeplink entirely — the broadcast is one-shot per install.
+  unawaited(attribution.start());
+
   final VerdictDispatcher dispatcher = VerdictDispatcher(vault);
   final ReachProbe reach = ReachProbe();
 

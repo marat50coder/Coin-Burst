@@ -72,8 +72,20 @@ class RoutePilot {
       return const SlotOutcome();
     }
 
-    // 3. Network sanity — bail early with a stall before we even wake
-    //    AppsFlyer.
+    // 2.5. Wake AppsFlyer EARLY — even if we end up at the stall
+    //      screen afterwards. This has to happen before the first
+    //      reach-check so the SDK registers for the Play Install
+    //      Referrer broadcast on cold boot. If the user clicked a
+    //      OneLink before install, dropped the network, then opened
+    //      the app offline, the referrer is still cached briefly by
+    //      Google Play — but only an initialised SDK can collect it.
+    //      initSdk is fire-and-forget: the SDK handles its own retry
+    //      queue once connectivity returns.
+    unawaited(_attribution.start());
+
+    // 3. Network sanity — bail early with a stall. AppsFlyer keeps
+    //    warming up in the background and the next pilot run (post
+    //    reconnect) will have the deeplink waiting in awaitSignals.
     if (!await _reach.canReach()) {
       final bool returnsToSlot = _vault.track == TrackMemory.slot;
       return StallOutcome(returnsToSlot: returnsToSlot);
@@ -88,7 +100,8 @@ class RoutePilot {
       }
     }
 
-    // 5. Wake AppsFlyer + wait for signals.
+    // 5. Make sure AppsFlyer is up (idempotent — no-op if 2.5 already
+    //    ran it) and poll for the install/deep-link payload.
     await _attribution.start();
     final int wait = _vault.track == TrackMemory.initial
         ? RoutingCard.firstInstallAwaitSeconds
