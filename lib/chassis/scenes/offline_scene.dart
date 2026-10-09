@@ -1,14 +1,17 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
-import '../secrets/sealed_blobs.dart';
-import 'burst_button.dart';
+import '../trace/reach_probe.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
 // OFFLINE SCENE — reached whenever the pilot concludes "no network"
 // ─────────────────────────────────────────────────────────────────────────
-// Retry rebuilds the caller-supplied route through pushReplacement. The
-// pilot's in-flight cache clears on completion, so a retry runs the full
-// pipeline fresh (reach probe → attribution → verdict).
+// Pure Flutter chrome: no background artwork, just a dark gradient with
+// the two copy lines on top. A connectivity watcher auto-returns the
+// user to the exact page they lost connection on as soon as a reach
+// probe confirms real DNS egress (not just a captive-portal adapter).
 // ─────────────────────────────────────────────────────────────────────────
 
 class OfflineScene extends StatefulWidget {
@@ -21,16 +24,52 @@ class OfflineScene extends StatefulWidget {
 }
 
 class _OfflineSceneState extends State<OfflineScene> {
-  bool _busy = false;
+  StreamSubscription<List<ConnectivityResult>>? _connSub;
+  Timer? _probeDebounce;
+  bool _resuming = false;
 
-  Future<void> _retry() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    await Future<void>.delayed(const Duration(milliseconds: 540));
-    if (!mounted) return;
+  @override
+  void initState() {
+    super.initState();
+    // Any adapter flip (wifi/mobile/vpn) triggers a debounced reach probe —
+    // the OS can briefly report "connected" while DNS is still broken on a
+    // captive portal, so we never trust the raw stream alone.
+    _connSub =
+        ReachProbe().statusStream.listen((List<ConnectivityResult> states) {
+      final bool anyAdapter = states.any(
+        (ConnectivityResult s) => s != ConnectivityResult.none,
+      );
+      if (!anyAdapter) {
+        _probeDebounce?.cancel();
+        return;
+      }
+      _probeDebounce?.cancel();
+      _probeDebounce =
+          Timer(const Duration(milliseconds: 650), _confirmAndResume);
+    });
+
+    // Also run a probe on mount in case the connection recovered between
+    // the pilot's drop-detection and the OfflineScene being pushed.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _confirmAndResume(),
+    );
+  }
+
+  Future<void> _confirmAndResume() async {
+    if (_resuming || !mounted) return;
+    final bool online = await ReachProbe().canReach();
+    if (!online || !mounted || _resuming) return;
+    _resuming = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: widget.onRetryBuild),
     );
+  }
+
+  @override
+  void dispose() {
+    _probeDebounce?.cancel();
+    _connSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -39,51 +78,41 @@ class _OfflineSceneState extends State<OfflineScene> {
     final bool landscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
-    // Reuses the notifications artwork — the game shipped only one gray
-    // backdrop so we tint it heavier and overlay the offline copy.
-    final String bg = landscape
-        ? 'assets/Coin_Burst_additional_assets/'
-            'Horizontal_Notifications_Screen.webp'
-        : 'assets/Coin_Burst_additional_assets/'
-            'Vertical_Notifications_Screen.webp';
-
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0518),
-      body: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Image.asset(
-            bg,
-            fit: BoxFit.cover,
-            width: size.width,
-            height: size.height,
+      backgroundColor: const Color(0xFF07040F),
+      body: Container(
+        width: size.width,
+        height: size.height,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Color(0xFF14091F),
+              Color(0xFF0A0514),
+              Color(0xFF1A0B2E),
+            ],
+            stops: <double>[0.0, 0.55, 1.0],
           ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[Color(0x66000000), Color(0xDD000000)],
-              ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: size.width * (landscape ? 0.12 : 0.08),
             ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: size.width * (landscape ? 0.14 : 0.08),
-              ),
+            child: Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
-                    unlockOfflineTitle(),
+                    'NO INTERNET CONNECTION',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: const Color(0xFFFFE07A),
-                      fontSize: landscape ? 22 : 28,
+                      fontSize: landscape ? 22 : 26,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                      height: 1.0,
+                      letterSpacing: 1.2,
+                      height: 1.15,
                       shadows: const <Shadow>[
                         Shadow(
                           color: Colors.black87,
@@ -93,15 +122,15 @@ class _OfflineSceneState extends State<OfflineScene> {
                       ],
                     ),
                   ),
-                  SizedBox(height: landscape ? 6 : 10),
+                  SizedBox(height: landscape ? 10 : 14),
                   Text(
-                    unlockOfflineBody(),
+                    'Check your connection and try again',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: const Color(0xFFEADFC9),
                       fontSize: landscape ? 14 : 16,
                       fontWeight: FontWeight.w500,
-                      height: 1.3,
+                      height: 1.35,
                       shadows: const <Shadow>[
                         Shadow(
                           color: Colors.black87,
@@ -111,33 +140,11 @@ class _OfflineSceneState extends State<OfflineScene> {
                       ],
                     ),
                   ),
-                  SizedBox(height: landscape ? 14 : 22),
-                  _busy
-                      ? const SizedBox(
-                          width: 34,
-                          height: 34,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFFFFE07A)),
-                          ),
-                        )
-                      : BurstBigButton(
-                          label: unlockOfflineRetry(),
-                          // Cap width per gray_part_pitfalls.md §18 so
-                          // the button never spans a tablet in landscape.
-                          width: landscape
-                              ? size.width * 0.36
-                              : size.width * 0.65,
-                          compact: landscape,
-                          onTap: _retry,
-                        ),
-                  SizedBox(height: size.height * (landscape ? 0.08 : 0.07)),
                 ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
