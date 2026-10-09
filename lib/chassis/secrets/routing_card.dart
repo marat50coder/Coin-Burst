@@ -67,12 +67,14 @@ abstract final class RoutingCard {
   static const int cachedUrlLifetimeSeconds = 7 * 24 * 60 * 60;
 
   // ── Attribution + messaging credentials ───────────────────────────
-  // Operator will provide these when the AppsFlyer dashboard and the
-  // Firebase project are ready. Leaving them empty keeps the gray
-  // branch dormant — every install lands in the native game — so QA
-  // can smoke-test without a working attribution stack.
-  static const String attributionKey = '';
-  static const String messagingProjectId = '';
+  // AppsFlyer dev key — present on every Android install because the
+  // AppsFlyer SDK reads it at `initSdk` time; obfuscating it is
+  // pointless (an attacker just dumps the SDK logs). The Firebase
+  // project id lives in android/app/google-services.json and is also
+  // mirrored into the config body so the backend knows which project
+  // owns the push token.
+  static const String attributionKey = 'dUBtNHAXZCZCJi2yczFQta';
+  static const String messagingProjectId = 'coin-burst';
 
   /// `storeId` convention: `id<numeric>` on iOS, bundle on Android.
   static String get storeId {

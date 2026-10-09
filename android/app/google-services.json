@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "446805877890",
+    "project_id": "coin-burst",
+    "storage_bucket": "coin-burst.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:446805877890:android:90ae4fa68141063d39809b",
+        "android_client_info": {
+          "package_name": "com.coinburst.coinburstgame"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCuw6wF41kA5Vua27mt6mdpR1lwR9X_meE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

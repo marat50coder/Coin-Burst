@@ -4,10 +4,12 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    // Google Services (Firebase). Enabled only after the operator drops a
-    // real google-services.json into android/app/. Keeping it commented
-    // out here means a bare clone (no credentials yet) still builds.
-    // id("com.google.gms.google-services")
+    // Google Services (Firebase). Resolves com.google.firebase:firebase-*
+    // artifacts from android/app/google-services.json at build time. The
+    // JSON file ships inside the repo so the gray branch can light up on
+    // first launch — if you ever rotate the Firebase project, drop a
+    // fresh json file in the same place.
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and
     // Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
